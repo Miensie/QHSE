@@ -11,6 +11,17 @@ const GEMINI_CONFIG = {
   storageKey: "qhse_gemini_key",
 };
 
+// Wrapper localStorage sécurisé (Edge Tracking Prevention bloque localStorage en iframe)
+const _store = {};
+const storage = {
+  get(key) {
+    try { return localStorage.getItem(key); } catch { return _store[key] ?? null; }
+  },
+  set(key, val) {
+    try { localStorage.setItem(key, val); } catch { _store[key] = val; }
+  },
+};
+
 let _apiKey     = "";
 let _chatHistory = [];
 
@@ -18,12 +29,12 @@ let _chatHistory = [];
 
 function setApiKey(key) {
   _apiKey = key.trim();
-  try { localStorage.setItem(GEMINI_CONFIG.storageKey, _apiKey); } catch {}
+  try { storage.set(GEMINI_CONFIG.storageKey, _apiKey); } catch {}
 }
 
 function loadApiKey() {
   try {
-    const saved = localStorage.getItem(GEMINI_CONFIG.storageKey);
+    const saved = storage.get(GEMINI_CONFIG.storageKey);
     if (saved) _apiKey = saved;
   } catch {}
   return _apiKey;

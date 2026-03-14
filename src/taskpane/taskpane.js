@@ -3,6 +3,10 @@
  * Coordonne : ExcelBridge, QualityStats, ControlCharts, GeminiAI
  */
 import "./taskpane.css";
+import "../modules/statistics.js";
+import "../modules/controlCharts.js";
+import "../modules/excelBridge.js";
+import "../modules/geminiAI.js";
 
 // ─── État global ──────────────────────────────────────────────────────────────
 const APP = {
