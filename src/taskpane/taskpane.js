@@ -794,19 +794,6 @@ function setupRapportHandlers() {
   document.getElementById("btn-rapport-html").addEventListener("click", () => {
     generateHTMLReport();
   });
-
-  document.getElementById("btn-rapport-excel").addEventListener("click", async () => {
-    setBtnLoading("btn-rapport-excel", true, "Génération…");
-    try {
-      await generateExcelReport();
-      toast("✅ Rapport généré dans Excel", "success");
-      logRapport("Rapport Excel créé avec succès", "success");
-    } catch (e) {
-      toast("Erreur rapport : " + e.message, "error");
-      logRapport("Erreur : " + e.message, "error");
-    }
-    setBtnLoading("btn-rapport-excel", false, "📊 Générer dans Excel");
-  });
 }
 
 async function generateExcelReport() {
