@@ -11,15 +11,15 @@
   <DefaultLocale>fr-FR</DefaultLocale>
   <DisplayName DefaultValue="QHSE Analyzer Pro" />
   <Description DefaultValue="Analyse intelligente qualité — Pareto, Ishikawa, AMDEC, SPC, IA Gemini" />
-  <IconUrl DefaultValue="https://github.com/miensie/QHSE/icon-32.png" />
-  <HighResolutionIconUrl DefaultValue="https://github.com/miensie/QHSE/icon-64.png" />
-  <SupportUrl DefaultValue="https://github.com/miensie/QHSE" />
+  <IconUrl DefaultValue="https://miensie.github.io/QHSE/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://miensie.github.io/QHSE/icon-64.png" />
+  <SupportUrl DefaultValue="https://miensie.github.io/QHSE" />
   <AppDomains>
-    <AppDomain>https://github.com/miensie/QHSE</AppDomain>
+    <AppDomain>https://miensie.github.io/QHSE</AppDomain>
   </AppDomains>
   <Hosts><Host Name="Workbook" /></Hosts>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://github.com/miensie/QHSE/taskpane.html" />
+    <SourceLocation DefaultValue="https://miensie.github.io/QHSE/taskpane.html" />
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
@@ -60,13 +60,13 @@
     </Hosts>
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://github.com/miensie/QHSE/icon-16.png" />
-        <bt:Image id="Icon.32x32" DefaultValue="https://github.com/miensie/QHSE/icon-32.png" />
-        <bt:Image id="Icon.80x80" DefaultValue="https://github.com/miensie/QHSE/icon-80.png" />
+        <bt:Image id="Icon.16x16" DefaultValue="https://miensie.github.io/QHSE/icon-16.png" />
+        <bt:Image id="Icon.32x32" DefaultValue="https://miensie.github.io/QHSE/icon-32.png" />
+        <bt:Image id="Icon.80x80" DefaultValue="https://miensie.github.io/QHSE/icon-80.png" />
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="Commands.Url" DefaultValue="https://github.com/miensie/QHSE/commands.html" />
-        <bt:Url id="Taskpane.Url" DefaultValue="https://github.com/miensie/QHSE/taskpane.html" />
+        <bt:Url id="Commands.Url" DefaultValue="https://miensie.github.io/QHSE/commands.html" />
+        <bt:Url id="Taskpane.Url" DefaultValue="https://miensie.github.io/QHSE/taskpane.html" />
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="CommandsGroup.Label" DefaultValue="QHSE Analyzer" />
