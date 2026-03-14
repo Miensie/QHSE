@@ -970,8 +970,7 @@ function generateHTMLReport() {
     const iaContent = document.getElementById("ia-content")?.innerText?.trim();
     sections += `<h2>Analyse IA — Gemini</h2>
     <div class="ia-block">${iaContent
-      ? iaContent.replace(/
-/g, "<br>")
+      ? iaContent.replace(/\n/g, "<br>")
       : "<em style='color:#9ca3af'>Aucune analyse IA effectuée — lancez l'analyse depuis l'onglet IA d'abord.</em>"
     }</div>`;
   }
