@@ -1,0 +1,79 @@
+name: 🚀 Deploy QHSE Analyzer Pro to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Déclenchement manuel possible
+
+permissions:
+  contents: read
+  pages:    write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+
+  # ── Build ───────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate manifest
+        run: npx office-addin-manifest validate manifest.xml
+        continue-on-error: true   # Ne bloque pas le build si validation échoue
+
+      - name: Build production
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      # Mettre à jour les URLs dans manifest.xml pour GitHub Pages
+      - name: Update manifest URLs for production
+        run: |
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          OWNER=$(echo "${{ github.repository }}" | cut -d'/' -f1)
+          BASE_URL="https://${OWNER}.github.io/${REPO_NAME}"
+          sed -i "s|https://localhost:3000|${BASE_URL}|g" dist/manifest.xml
+          echo "URLs mises à jour : ${BASE_URL}"
+          cat dist/manifest.xml | grep DefaultValue | head -5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/
+
+  # ── Deploy ──────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url:  ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Print deployment URL
+        run: |
+          echo "✅ Déployé sur : ${{ steps.deployment.outputs.page_url }}"
+          echo "📋 Manifest : ${{ steps.deployment.outputs.page_url }}manifest.xml"

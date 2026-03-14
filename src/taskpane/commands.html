@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <script src="https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js"></script>
+  <script>
+    "use strict";
+    Office.onReady(() => {});
+
+    // Commandes accessibles depuis le ruban Excel (sans ouvrir le panneau)
+    function openTaskpane(event) {
+      Office.addin.showAsTaskpane();
+      event.completed();
+    }
+
+    function runQuickSPC(event) {
+      Excel.run(async ctx => {
+        const range = ctx.workbook.getSelectedRange();
+        range.load("values,address");
+        await ctx.sync();
+        const flat = range.values.flat().map(parseFloat).filter(isFinite);
+        if (!flat.length) { event.completed(); return; }
+        // Insérer une note rapide dans la cellule adjacente
+        const firstCell = range.getCell(0, 0).getOffsetRange(0, range.columnCount);
+        const mean = flat.reduce((s,v)=>s+v,0)/flat.length;
+        const std  = Math.sqrt(flat.map(v=>(v-mean)**2).reduce((s,v)=>s+v,0)/(flat.length-1));
+        firstCell.values = [[`x̄=${mean.toFixed(3)} σ=${std.toFixed(3)}`]];
+        firstCell.format.font.color = "#00D4FF";
+        await ctx.sync();
+        event.completed();
+      }).catch(() => event.completed());
+    }
+
+    // Exposer les fonctions pour Office
+    Office.actions.associate("openTaskpane", openTaskpane);
+    Office.actions.associate("runQuickSPC",  runQuickSPC);
+  </script>
+</head>
+<body></body>
+</html>

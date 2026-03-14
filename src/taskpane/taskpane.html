@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QHSE Analyzer Pro</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js" type="text/javascript"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="taskpane.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     HEADER
+═══════════════════════════════════════════ -->
+<header class="app-header">
+  <div class="header-brand">
+    <span class="brand-icon">⬡</span>
+    <div>
+      <div class="brand-name">QHSE Analyzer <span class="brand-pro">PRO</span></div>
+      <div class="brand-sub">Qualité · Sécurité · Environnement</div>
+    </div>
+  </div>
+  <div class="header-status">
+    <span id="footer-status" class="status-text">Initialisation…</span>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════
+     NAVIGATION
+═══════════════════════════════════════════ -->
+<nav class="nav-rail">
+  <button class="nav-tab active" data-panel="panel-data"      title="Données">
+    <span class="nav-icon">⬢</span><span class="nav-label">Données</span>
+  </button>
+  <button class="nav-tab" data-panel="panel-pareto"    title="Pareto">
+    <span class="nav-icon">◈</span><span class="nav-label">Pareto</span>
+  </button>
+  <button class="nav-tab" data-panel="panel-ishikawa"  title="Ishikawa">
+    <span class="nav-icon">⊕</span><span class="nav-label">Ishikawa</span>
+  </button>
+  <button class="nav-tab" data-panel="panel-amdec"     title="AMDEC">
+    <span class="nav-icon">⚠</span><span class="nav-label">AMDEC</span>
+  </button>
+  <button class="nav-tab" data-panel="panel-spc"       title="Cartes SPC">
+    <span class="nav-icon">◉</span><span class="nav-label">SPC</span>
+  </button>
+  <button class="nav-tab" data-panel="panel-dashboard" title="Dashboard">
+    <span class="nav-icon">▣</span><span class="nav-label">Dashboard</span>
+  </button>
+  <button class="nav-tab" data-panel="panel-ia"        title="Analyse IA">
+    <span class="nav-icon">✦</span><span class="nav-label">IA</span>
+  </button>
+  <button class="nav-tab" data-panel="panel-rapport"   title="Rapport">
+    <span class="nav-icon">▤</span><span class="nav-label">Rapport</span>
+  </button>
+</nav>
+
+<!-- ═══════════════════════════════════════════
+     CONTENU PRINCIPAL
+═══════════════════════════════════════════ -->
+<main class="main-content">
+
+  <!-- ─── PANEL : DONNÉES ─── -->
+  <section id="panel-data" class="panel active">
+    <div class="panel-header">
+      <h2>Lecture des données Excel</h2>
+      <p class="panel-desc">Sélectionnez votre plage de données et importez les colonnes à analyser.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 Configuration</div>
+      <div class="form-row">
+        <label>Plage de données</label>
+        <div class="input-group">
+          <input type="text" id="data-range" placeholder="ex: A1:F200" />
+          <button class="btn-icon" id="btn-detect-range" title="Détecter automatiquement">⟳</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>En-têtes en ligne 1</label>
+        <label class="toggle">
+          <input type="checkbox" id="data-headers" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <button class="btn btn-primary" id="btn-read-data">⬢ Importer les données</button>
+    </div>
+
+    <div class="card" id="columns-card" style="display:none">
+      <div class="card-title">🔢 Colonnes détectées</div>
+      <div id="columns-list" class="columns-grid"></div>
+      <div class="card-title" style="margin-top:12px">Colonne principale (mesure)</div>
+      <select id="select-main-col" class="select-field"></select>
+      <div class="card-title" style="margin-top:12px">Colonne catégorie (défauts)</div>
+      <select id="select-cat-col" class="select-field"></select>
+    </div>
+
+    <div class="card" id="preview-card" style="display:none">
+      <div class="card-title">👁 Aperçu — <span id="preview-count">0</span> lignes</div>
+      <div class="table-wrapper">
+        <table id="preview-table" class="data-table">
+          <thead id="preview-thead"></thead>
+          <tbody id="preview-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="log-data" class="log-panel"></div>
+  </section>
+
+  <!-- ─── PANEL : PARETO ─── -->
+  <section id="panel-pareto" class="panel">
+    <div class="panel-header">
+      <h2>Diagramme de Pareto</h2>
+      <p class="panel-desc">Loi 80/20 — identifiez les causes vitales des défauts.</p>
+    </div>
+    <div class="card">
+      <div class="form-row">
+        <label>Colonne des causes/catégories</label>
+        <select id="pareto-col" class="select-field"></select>
+      </div>
+      <div class="form-row">
+        <label>Colonne des fréquences (optionnel)</label>
+        <select id="pareto-freq-col" class="select-field">
+          <option value="">— Compter les occurrences —</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="btn-pareto">◈ Générer le Pareto</button>
+    </div>
+    <div class="card" id="pareto-result" style="display:none">
+      <div class="card-title">Résultats Pareto</div>
+      <div class="chart-container"><canvas id="chart-pareto"></canvas></div>
+      <div class="table-wrapper" style="margin-top:12px">
+        <table class="data-table" id="pareto-table">
+          <thead><tr><th>Cause</th><th>Fréq.</th><th>%</th><th>Cumul %</th><th>Classe</th></tr></thead>
+          <tbody id="pareto-tbody"></tbody>
+        </table>
+      </div>
+      <button class="btn btn-secondary" id="btn-pareto-excel" style="margin-top:8px">📊 Écrire dans Excel</button>
+    </div>
+  </section>
+
+  <!-- ─── PANEL : ISHIKAWA ─── -->
+  <section id="panel-ishikawa" class="panel">
+    <div class="panel-header">
+      <h2>Diagramme d'Ishikawa</h2>
+      <p class="panel-desc">Structurez les causes racines selon les 5M.</p>
+    </div>
+    <div class="card">
+      <div class="form-row">
+        <label>Effet / Problème principal</label>
+        <input type="text" id="ishi-effect" placeholder="ex: Produits non conformes" />
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">5M — Saisie des causes</div>
+      <div id="ishi-5m-grid" class="ishi-grid">
+        <div class="ishi-category" data-cat="methode">
+          <div class="ishi-cat-header"><span class="cat-dot m1"></span>Méthode</div>
+          <div class="ishi-causes" id="causes-methode"></div>
+          <div class="ishi-add"><input type="text" placeholder="Ajouter une cause…" /><button>+</button></div>
+        </div>
+        <div class="ishi-category" data-cat="machine">
+          <div class="ishi-cat-header"><span class="cat-dot m2"></span>Machine</div>
+          <div class="ishi-causes" id="causes-machine"></div>
+          <div class="ishi-add"><input type="text" placeholder="Ajouter une cause…" /><button>+</button></div>
+        </div>
+        <div class="ishi-category" data-cat="matiere">
+          <div class="ishi-cat-header"><span class="cat-dot m3"></span>Matière</div>
+          <div class="ishi-causes" id="causes-matiere"></div>
+          <div class="ishi-add"><input type="text" placeholder="Ajouter une cause…" /><button>+</button></div>
+        </div>
+        <div class="ishi-category" data-cat="main-oeuvre">
+          <div class="ishi-cat-header"><span class="cat-dot m4"></span>Main d'œuvre</div>
+          <div class="ishi-causes" id="causes-main-oeuvre"></div>
+          <div class="ishi-add"><input type="text" placeholder="Ajouter une cause…" /><button>+</button></div>
+        </div>
+        <div class="ishi-category" data-cat="milieu">
+          <div class="ishi-cat-header"><span class="cat-dot m5"></span>Milieu</div>
+          <div class="ishi-causes" id="causes-milieu"></div>
+          <div class="ishi-add"><input type="text" placeholder="Ajouter une cause…" /><button>+</button></div>
+        </div>
+        <div class="ishi-category" data-cat="mesure">
+          <div class="ishi-cat-header"><span class="cat-dot m6"></span>Mesure</div>
+          <div class="ishi-causes" id="causes-mesure"></div>
+          <div class="ishi-add"><input type="text" placeholder="Ajouter une cause…" /><button>+</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <button class="btn btn-primary" id="btn-ishi-generate">⊕ Générer le diagramme</button>
+      <button class="btn btn-secondary" id="btn-ishi-ai" style="margin-top:6px">✦ Suggestions IA</button>
+    </div>
+    <div id="ishi-diagram-container" class="card" style="display:none">
+      <div class="card-title">Diagramme d'Ishikawa</div>
+      <canvas id="chart-ishikawa" height="300"></canvas>
+    </div>
+  </section>
+
+  <!-- ─── PANEL : AMDEC ─── -->
+  <section id="panel-amdec" class="panel">
+    <div class="panel-header">
+      <h2>AMDEC — Analyse des Modes de Défaillance</h2>
+      <p class="panel-desc">Calculez la criticité RPN = Gravité × Occurrence × Détection.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Saisie AMDEC</div>
+      <div class="amdec-form">
+        <input type="text" id="amdec-fonction"     placeholder="Fonction / Composant" />
+        <input type="text" id="amdec-mode"         placeholder="Mode de défaillance" />
+        <input type="text" id="amdec-effet"        placeholder="Effet potentiel" />
+        <input type="text" id="amdec-cause"        placeholder="Cause probable" />
+        <div class="amdec-scores">
+          <div class="score-field">
+            <label>G (1–10)<br><small>Gravité</small></label>
+            <input type="number" id="amdec-g" min="1" max="10" value="1" />
+          </div>
+          <div class="score-field">
+            <label>O (1–10)<br><small>Occurrence</small></label>
+            <input type="number" id="amdec-o" min="1" max="10" value="1" />
+          </div>
+          <div class="score-field">
+            <label>D (1–10)<br><small>Détection</small></label>
+            <input type="number" id="amdec-d" min="1" max="10" value="1" />
+          </div>
+          <div class="score-field rpn-display">
+            <label>RPN<br><small>Criticité</small></label>
+            <div id="amdec-rpn-preview" class="rpn-badge">1</div>
+          </div>
+        </div>
+        <input type="text" id="amdec-action" placeholder="Action corrective recommandée" />
+        <button class="btn btn-primary" id="btn-amdec-add">+ Ajouter la ligne</button>
+      </div>
+    </div>
+
+    <div class="card" id="amdec-results-card" style="display:none">
+      <div class="card-title">Tableau AMDEC — <span id="amdec-count">0</span> mode(s)</div>
+      <div class="rpn-legend">
+        <span class="rpn-badge critical">RPN ≥ 100 Critique</span>
+        <span class="rpn-badge major">50–99 Majeur</span>
+        <span class="rpn-badge minor">50 Mineur</span>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table amdec-table">
+          <thead><tr><th>Fonction</th><th>Mode</th><th>Effet</th><th>Cause</th><th>G</th><th>O</th><th>D</th><th>RPN</th><th>Action</th><th></th></tr></thead>
+          <tbody id="amdec-tbody"></tbody>
+        </table>
+      </div>
+      <div class="chart-container" style="height:180px;margin-top:12px"><canvas id="chart-amdec"></canvas></div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button class="btn btn-secondary" id="btn-amdec-excel">📊 Écrire dans Excel</button>
+        <button class="btn btn-ghost"     id="btn-amdec-clear">🗑 Vider</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── PANEL : SPC ─── -->
+  <section id="panel-spc" class="panel">
+    <div class="panel-header">
+      <h2>Cartes de contrôle SPC</h2>
+      <p class="panel-desc">Statistical Process Control — détectez les dérives et points hors contrôle.</p>
+    </div>
+    <div class="card">
+      <div class="form-row">
+        <label>Type de carte</label>
+        <select id="spc-type" class="select-field">
+          <option value="xbar-r">X̄-R (sous-groupes)</option>
+          <option value="imr">I-MR (individuelle)</option>
+          <option value="p">Carte p (proportion)</option>
+          <option value="c">Carte c (nombre défauts)</option>
+        </select>
+      </div>
+      <div id="spc-subgroup-row" class="form-row">
+        <label>Taille des sous-groupes</label>
+        <input type="number" id="spc-subgroup" value="5" min="2" max="25" />
+      </div>
+      <div class="form-row">
+        <label>Colonne de données</label>
+        <select id="spc-col" class="select-field"></select>
+      </div>
+      <div id="spc-n-row" class="form-row" style="display:none">
+        <label>Colonne taille lot n (carte p)</label>
+        <select id="spc-n-col" class="select-field"></select>
+      </div>
+      <button class="btn btn-primary" id="btn-spc">◉ Calculer les cartes</button>
+    </div>
+
+    <div id="spc-results" style="display:none">
+      <div class="card">
+        <div class="card-title">Statistiques de processus</div>
+        <div class="kpi-grid" id="spc-kpis"></div>
+      </div>
+      <div class="card">
+        <div class="card-title" id="spc-chart1-title">Carte X̄</div>
+        <div class="chart-container"><canvas id="chart-spc-1"></canvas></div>
+      </div>
+      <div class="card" id="spc-chart2-card">
+        <div class="card-title" id="spc-chart2-title">Carte R</div>
+        <div class="chart-container"><canvas id="chart-spc-2"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">⚠️ Violations détectées</div>
+        <div id="spc-violations" class="violations-list"></div>
+      </div>
+      <div style="padding:0 var(--gap)">
+        <button class="btn btn-secondary" id="btn-spc-excel">📊 Écrire les cartes dans Excel</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── PANEL : DASHBOARD ─── -->
+  <section id="panel-dashboard" class="panel">
+    <div class="panel-header">
+      <h2>Tableau de bord Qualité</h2>
+      <p class="panel-desc">Indicateurs qualité et KPIs en temps réel.</p>
+    </div>
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">Taux NC</div>
+        <div class="kpi-value" id="kpi-nc">—</div>
+        <div class="kpi-unit">%</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Nb défauts</div>
+        <div class="kpi-value" id="kpi-defauts">—</div>
+        <div class="kpi-unit">total</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Cp / Cpk</div>
+        <div class="kpi-value" id="kpi-cpk">—</div>
+        <div class="kpi-unit">capabilité</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Points HC</div>
+        <div class="kpi-value" id="kpi-hc">—</div>
+        <div class="kpi-unit">hors contrôle</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Indice de capabilité</div>
+      <div class="form-row">
+        <label>LSL (limite spec. inférieure)</label>
+        <input type="number" id="dash-lsl" placeholder="ex: 95" step="any" />
+      </div>
+      <div class="form-row">
+        <label>USL (limite spec. supérieure)</label>
+        <input type="number" id="dash-usl" placeholder="ex: 105" step="any" />
+      </div>
+      <button class="btn btn-primary" id="btn-dashboard">▣ Calculer le dashboard</button>
+    </div>
+
+    <div class="card" id="dash-charts-card" style="display:none">
+      <div class="card-title">Distribution des mesures</div>
+      <div class="chart-container"><canvas id="chart-histogram"></canvas></div>
+    </div>
+
+    <div class="card" id="dash-evolution-card" style="display:none">
+      <div class="card-title">Évolution temporelle</div>
+      <div class="chart-container"><canvas id="chart-evolution"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ─── PANEL : IA ─── -->
+  <section id="panel-ia" class="panel">
+    <div class="panel-header">
+      <h2>Analyse IA — Gemini</h2>
+      <p class="panel-desc">Diagnostics intelligents, interprétation SPC et recommandations.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">🔑 Configuration API Gemini</div>
+      <div class="form-row">
+        <label>Clé API Google AI Studio</label>
+        <div class="input-group">
+          <input type="password" id="gemini-key" placeholder="AIza…" autocomplete="off"/>
+          <button class="btn-icon" id="btn-save-key">💾</button>
+        </div>
+      </div>
+      <div class="api-hint">Obtenez votre clé sur <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">✦ Actions IA</div>
+      <div class="ia-actions">
+        <button class="btn btn-primary"   id="btn-ia-spc">◉ Interpréter les cartes SPC</button>
+        <button class="btn btn-secondary" id="btn-ia-pareto">◈ Analyser le Pareto</button>
+        <button class="btn btn-secondary" id="btn-ia-amdec">⚠ Évaluer l'AMDEC</button>
+        <button class="btn btn-secondary" id="btn-ia-global">⬢ Diagnostic global</button>
+      </div>
+    </div>
+
+    <div class="card" id="ia-result-zone" style="display:none">
+      <div class="card-title">Résultat de l'analyse</div>
+      <div id="ia-content" class="ia-content"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">💬 Chat QHSE</div>
+      <div id="chat-messages" class="chat-messages">
+        <div class="chat-msg chat-assistant">
+          <div class="chat-bubble">Bonjour ! Je suis votre assistant QHSE. Posez-moi vos questions sur vos données qualité.</div>
+        </div>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chat-input" placeholder="Posez votre question…" />
+        <button class="btn-send" id="btn-chat-send">➤</button>
+      </div>
+      <div class="chat-suggestions">
+        <button class="chat-chip" data-prompt="Le procédé est-il sous contrôle statistique ?">Procédé sous contrôle ?</button>
+        <button class="chat-chip" data-prompt="Quelles sont les principales causes de non-conformité ?">Causes NC ?</button>
+        <button class="chat-chip" data-prompt="Proposez un plan d'action correctif prioritaire.">Plan d'action</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── PANEL : RAPPORT ─── -->
+  <section id="panel-rapport" class="panel">
+    <div class="panel-header">
+      <h2>Rapport qualité automatique</h2>
+      <p class="panel-desc">Générez un rapport complet avec graphiques et recommandations IA.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">⚙️ Paramètres du rapport</div>
+      <div class="form-row">
+        <label>Entreprise</label>
+        <input type="text" id="rpt-entreprise" placeholder="Nom de l'entreprise" />
+      </div>
+      <div class="form-row">
+        <label>Référence produit / processus</label>
+        <input type="text" id="rpt-ref" placeholder="ex: Ligne A — Pièce P420" />
+      </div>
+      <div class="form-row">
+        <label>Période d'analyse</label>
+        <input type="text" id="rpt-periode" placeholder="ex: Janvier–Mars 2025" />
+      </div>
+      <div class="form-row">
+        <label>Analyste</label>
+        <input type="text" id="rpt-analyste" placeholder="Nom du responsable qualité" />
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📦 Contenu du rapport</div>
+      <div class="checkbox-list">
+        <label class="cb-item"><input type="checkbox" id="rpt-include-pareto"   checked /> Diagramme de Pareto</label>
+        <label class="cb-item"><input type="checkbox" id="rpt-include-spc"      checked /> Cartes de contrôle SPC</label>
+        <label class="cb-item"><input type="checkbox" id="rpt-include-amdec"    checked /> Tableau AMDEC</label>
+        <label class="cb-item"><input type="checkbox" id="rpt-include-kpis"     checked /> KPIs et dashboard</label>
+        <label class="cb-item"><input type="checkbox" id="rpt-include-ia"       checked /> Analyse et recommandations IA</label>
+        <label class="cb-item"><input type="checkbox" id="rpt-include-ishi"            /> Diagramme d'Ishikawa</label>
+      </div>
+    </div>
+    <div class="card">
+      <button class="btn btn-primary"   id="btn-rapport-excel">📊 Générer dans Excel</button>
+      <button class="btn btn-secondary" id="btn-rapport-html"  style="margin-top:6px">🌐 Aperçu HTML</button>
+    </div>
+    <div id="log-rapport" class="log-panel"></div>
+  </section>
+
+</main>
+
+<!-- TOAST -->
+<div id="toast-container"></div>
+
+</body>
+</html>

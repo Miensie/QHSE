@@ -1,0 +1,32 @@
+{
+  "name": "qhse-analyzer-pro",
+  "version": "2.0.0",
+  "description": "Complément Excel QHSE — Analyse qualité intelligente avec IA Gemini",
+  "scripts": {
+    "start": "office-addin-dev-certs install --machine && webpack serve --mode development",
+    "start:https": "webpack serve --mode development --https",
+    "build": "webpack --mode production",
+    "build:dev": "webpack --mode development",
+    "validate": "office-addin-manifest validate manifest.xml",
+    "sideload": "office-addin-debugging start manifest.xml desktop --document ./data/sample.xlsx"
+  },
+  "dependencies": {
+    "@microsoft/office-js": "^1.1.0",
+    "chart.js": "^4.4.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "babel-loader": "^9.1.0",
+    "copy-webpack-plugin": "^11.0.0",
+    "css-loader": "^6.8.0",
+    "html-webpack-plugin": "^5.5.0",
+    "office-addin-debugging": "^1.1.0",
+    "office-addin-dev-certs": "^1.2.0",
+    "office-addin-manifest": "^1.9.0",
+    "style-loader": "^3.3.0",
+    "webpack": "^5.88.0",
+    "webpack-cli": "^5.1.0",
+    "webpack-dev-server": "^4.15.0"
+  }
+}
