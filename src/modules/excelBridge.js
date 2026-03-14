@@ -92,46 +92,65 @@ async function writeTable(sheetName, startCell, data, title = null) {
   return Excel.run(async (ctx) => {
     const wb = ctx.workbook;
 
-    // Obtenir ou créer la feuille
-    let sheet;
-    try {
-      sheet = wb.worksheets.getItem(sheetName);
-      await ctx.sync();
-    } catch {
+    // getItemOrNullObject évite l'erreur interne d'Office.js avec try/catch
+    let sheet = wb.worksheets.getItemOrNullObject(sheetName);
+    await ctx.sync();
+    if (sheet.isNullObject) {
       sheet = wb.worksheets.add(sheetName);
       await ctx.sync();
     }
 
-    let row = parseInt(startCell.replace(/[A-Z]/g, "")) || 1;
-    const col = startCell.replace(/[0-9]/g, "") || "A";
+    // Vider la feuille avant d'écrire
+    sheet.getUsedRangeOrNullObject().clear();
+    await ctx.sync();
+
+    let row = parseInt(startCell.replace(/[A-Z]/gi, "")) || 1;
+    const col = startCell.replace(/[0-9]/g, "").toUpperCase() || "A";
 
     // Titre optionnel
     if (title) {
       const titleCell = sheet.getRange(`${col}${row}`);
-      titleCell.values = [[title]];
+      titleCell.values = [[String(title)]];
       titleCell.format.font.bold  = true;
       titleCell.format.font.size  = 12;
       titleCell.format.font.color = "#39D0D8";
       row++;
     }
 
-    // Données
-    if (data.length > 0) {
-      const endCol = String.fromCharCode(col.charCodeAt(0) + data[0].length - 1);
-      const range  = sheet.getRange(`${col}${row}:${endCol}${row + data.length - 1}`);
-      range.values = data;
+    // Nettoyer les données : toute valeur doit être string ou number
+    const cleanData = data.map(rowArr =>
+      rowArr.map(v => {
+        if (v === null || v === undefined) return "";
+        if (typeof v === "number" && !isFinite(v)) return "";
+        return typeof v === "number" ? v : String(v);
+      })
+    );
 
-      // Style en-tête (première ligne = en-tête)
+    // Vérifier que toutes les lignes ont la même longueur
+    const ncols = cleanData[0]?.length || 0;
+    const safeData = cleanData.map(r => {
+      while (r.length < ncols) r.push("");
+      return r.slice(0, ncols);
+    });
+
+    if (safeData.length > 0 && ncols > 0) {
+      const endColCode = col.charCodeAt(0) + ncols - 1;
+      const endCol = endColCode <= 90
+        ? String.fromCharCode(endColCode)
+        : String.fromCharCode(64 + Math.floor((endColCode - 64) / 26)) + String.fromCharCode(64 + ((endColCode - 64) % 26));
+      const rangeAddr = `${col}${row}:${endCol}${row + safeData.length - 1}`;
+      const range = sheet.getRange(rangeAddr);
+      range.values = safeData;
+
+      // Style en-tête (première ligne)
       const headerRange = sheet.getRange(`${col}${row}:${endCol}${row}`);
-      headerRange.format.fill.color    = "#161B22";
-      headerRange.format.font.bold     = true;
-      headerRange.format.font.color    = "#8B949E";
-      headerRange.format.font.name     = "Courier New";
-      headerRange.format.font.size     = 9;
+      headerRange.format.fill.color = "#1C2B3A";
+      headerRange.format.font.bold  = true;
+      headerRange.format.font.color = "#8B949E";
+      headerRange.format.font.size  = 10;
 
-      // Adapter les largeurs
-      const fullRange = sheet.getRange(`${col}${row}:${endCol}${row + data.length - 1}`);
-      fullRange.format.autofitColumns();
+      // Autofit colonnes
+      sheet.getRange(rangeAddr).format.autofitColumns();
     }
 
     sheet.activate();

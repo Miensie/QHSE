@@ -856,75 +856,171 @@ function generateHTMLReport() {
     periode:    document.getElementById("rpt-periode").value    || "—",
     analyste:   document.getElementById("rpt-analyste").value   || "—",
   };
-  const kpis = APP.kpis;
-  const pareto = APP.paretoResult;
-  const amdec  = APP.amdecRows;
 
-  const paretoRows = pareto ? pareto.rows.slice(0, 8).map(r =>
-    `<tr><td>${r.cause}</td><td>${r.freq}</td><td>${r.pct.toFixed(1)}%</td>
-     <td>${r.cumul.toFixed(1)}%</td>
-     <td style="color:${r.classe==="A"?"#dc2626":r.classe==="B"?"#d97706":"#6b7280"};font-weight:600">${r.classe}</td></tr>`
-  ).join("") : "<tr><td colspan='5'>Aucun Pareto calculé</td></tr>";
+  // Lire les cases à cocher
+  const inc = {
+    pareto: document.getElementById("rpt-include-pareto").checked,
+    spc:    document.getElementById("rpt-include-spc").checked,
+    amdec:  document.getElementById("rpt-include-amdec").checked,
+    kpis:   document.getElementById("rpt-include-kpis").checked,
+    ia:     document.getElementById("rpt-include-ia").checked,
+    ishi:   document.getElementById("rpt-include-ishi").checked,
+  };
 
-  const amdecRows = amdec.length ? amdec.slice(0, 10).map(r =>
-    `<tr><td>${r.fonction}</td><td>${r.mode}</td><td>${r.cause}</td>
-     <td>${r.g}</td><td>${r.o}</td><td>${r.d}</td>
-     <td style="font-weight:700;color:${r.rpn>=100?"#dc2626":r.rpn>=50?"#d97706":"#16a34a"}">${r.rpn}</td></tr>`
-  ).join("") : "<tr><td colspan='7'>Aucune AMDEC saisie</td></tr>";
+  const kpis  = APP.kpis;
+  let sections = "";
 
-  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
-  <title>Rapport QHSE — ${info.entreprise}</title>
-  <style>
-    body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:32px;max-width:900px;margin:auto}
-    h1{color:#0d1117;font-size:22px;border-bottom:3px solid #39d0d8;padding-bottom:8px}
-    h2{color:#1c2b3a;font-size:15px;margin:28px 0 10px;border-left:4px solid #39d0d8;padding-left:10px}
-    .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:#f6f8fa;border-radius:8px;padding:16px;margin:16px 0}
-    .meta-item label{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
-    .meta-item span{display:block;font-weight:600;font-size:14px}
-    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
-    .kpi{background:#f6f8fa;border-radius:8px;padding:12px;text-align:center}
-    .kpi label{font-size:10px;color:#6b7280;text-transform:uppercase}
-    .kpi span{display:block;font-size:20px;font-weight:700;color:#0d1117;margin-top:4px}
-    table{width:100%;border-collapse:collapse;margin:10px 0}
-    th{background:#1c2b3a;color:#e6edf3;font-size:11px;padding:7px 10px;text-align:left}
-    td{padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px}
-    tr:hover td{background:#f9fafb}
-    .footer{margin-top:40px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center}
-  </style></head><body>
-  <h1>Rapport Qualité QHSE</h1>
-  <div class="meta">
-    <div class="meta-item"><label>Entreprise</label><span>${info.entreprise}</span></div>
-    <div class="meta-item"><label>Référence</label><span>${info.ref}</span></div>
-    <div class="meta-item"><label>Période</label><span>${info.periode}</span></div>
-    <div class="meta-item"><label>Analyste</label><span>${info.analyste}</span></div>
-  </div>
-  <h2>KPIs Qualité</h2>
-  <div class="kpi-grid">
-    <div class="kpi"><label>Taux NC</label><span>${kpis.tauxNC?.toFixed(2) ?? "—"}%</span></div>
-    <div class="kpi"><label>Nb défauts</label><span>${kpis.nbDefauts ?? "—"}</span></div>
-    <div class="kpi"><label>Cpk</label><span>${kpis.cpk?.toFixed(3) ?? "—"}</span></div>
-    <div class="kpi"><label>Points HC</label><span>${kpis.pointsHC ?? "—"}</span></div>
-  </div>
-  <h2>Analyse de Pareto</h2>
-  <table><thead><tr><th>Cause</th><th>Fréq.</th><th>%</th><th>Cumul</th><th>Classe</th></tr></thead>
-  <tbody>${paretoRows}</tbody></table>
-  <h2>Tableau AMDEC</h2>
-  <table><thead><tr><th>Fonction</th><th>Mode</th><th>Cause</th><th>G</th><th>O</th><th>D</th><th>RPN</th></tr></thead>
-  <tbody>${amdecRows}</tbody></table>
-  <div class="footer">Généré par QHSE Analyzer Pro v2.0 — ${new Date().toLocaleDateString("fr-FR")}</div>
-  </body></html>`;
+  // ── KPIs ──
+  if (inc.kpis) {
+    sections += `<h2>KPIs Qualité</h2>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">Taux NC</div><div class="kpi-val">${kpis.tauxNC?.toFixed(2) ?? "—"}%</div></div>
+      <div class="kpi"><div class="kpi-label">Nb défauts</div><div class="kpi-val">${kpis.nbDefauts ?? "—"}</div></div>
+      <div class="kpi"><div class="kpi-label">Cp</div><div class="kpi-val">${kpis.cp?.toFixed(3) ?? "—"}</div></div>
+      <div class="kpi"><div class="kpi-label">Cpk</div><div class="kpi-val">${kpis.cpk?.toFixed(3) ?? "—"}</div></div>
+      <div class="kpi"><div class="kpi-label">Points HC</div><div class="kpi-val">${kpis.pointsHC ?? "—"}</div></div>
+      <div class="kpi"><div class="kpi-label">Moyenne</div><div class="kpi-val">${kpis.mean?.toFixed(4) ?? "—"}</div></div>
+      <div class="kpi"><div class="kpi-label">Sigma</div><div class="kpi-val">${kpis.sigma?.toFixed(4) ?? "—"}</div></div>
+      <div class="kpi"><div class="kpi-label">PPM estimés</div><div class="kpi-val">${kpis.ppm?.toLocaleString("fr-FR") ?? "—"}</div></div>
+    </div>`;
+  }
+
+  // ── Pareto ──
+  if (inc.pareto) {
+    const pareto = APP.paretoResult;
+    const rows = pareto
+      ? pareto.rows.map(r =>
+          `<tr>
+            <td>${r.cause}</td>
+            <td style="text-align:right">${r.freq}</td>
+            <td style="text-align:right">${r.pct.toFixed(1)}%</td>
+            <td style="text-align:right;font-weight:600">${r.cumul.toFixed(1)}%</td>
+            <td style="text-align:center;font-weight:700;color:${r.classe==="A"?"#dc2626":r.classe==="B"?"#d97706":"#6b7280"}">${r.classe}</td>
+          </tr>`).join("")
+      : `<tr><td colspan="5" style="color:#9ca3af;font-style:italic">Aucun Pareto calculé — lancez l'analyse Pareto d'abord.</td></tr>`;
+    sections += `<h2>Analyse de Pareto</h2>
+    <p class="note">Total : ${pareto ? pareto.total + " défauts" : "—"}</p>
+    <table><thead><tr><th>Cause</th><th>Fréq.</th><th>%</th><th>% Cumulé</th><th>Classe</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+  }
+
+  // ── SPC ──
+  if (inc.spc) {
+    const spc = APP.spcResult;
+    const violations = spc
+      ? [...(spc.chart1?.violations || []), ...(spc.chart2?.violations || [])]
+      : [];
+    const violRows = violations.length
+      ? violations.map(v => `<tr><td>R${v.rule}</td><td>${v.label}</td></tr>`).join("")
+      : `<tr><td colspan="2" style="color:#16a34a;font-weight:600">Aucune violation — procédé sous contrôle</td></tr>`;
+    sections += `<h2>Cartes de contrôle SPC — ${spc ? spc.type.toUpperCase() : "—"}</h2>
+    ${spc ? `<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi"><div class="kpi-label">N points</div><div class="kpi-val">${spc.stats.n}</div></div>
+      <div class="kpi"><div class="kpi-label">Moyenne</div><div class="kpi-val">${spc.stats.mean?.toFixed(4)}</div></div>
+      <div class="kpi"><div class="kpi-label">UCL</div><div class="kpi-val" style="color:#dc2626">${(spc.stats.uclX??spc.stats.uclI??spc.stats.ucl??0).toFixed(4)}</div></div>
+      <div class="kpi"><div class="kpi-label">LCL</div><div class="kpi-val" style="color:#dc2626">${(spc.stats.lclX??spc.stats.lclI??spc.stats.lcl??0).toFixed(4)}</div></div>
+    </div>` : ""}
+    <table><thead><tr><th>Règle</th><th>Violation détectée</th></tr></thead>
+    <tbody>${violRows}</tbody></table>`;
+  }
+
+  // ── AMDEC ──
+  if (inc.amdec) {
+    const rows = APP.amdecRows.length
+      ? APP.amdecRows.map(r =>
+          `<tr>
+            <td>${r.fonction || "—"}</td>
+            <td>${r.mode || "—"}</td>
+            <td>${r.effet || "—"}</td>
+            <td>${r.cause || "—"}</td>
+            <td style="text-align:center">${r.g}</td>
+            <td style="text-align:center">${r.o}</td>
+            <td style="text-align:center">${r.d}</td>
+            <td style="text-align:center;font-weight:700;color:${r.rpn>=100?"#dc2626":r.rpn>=50?"#d97706":"#16a34a"}">${r.rpn}</td>
+            <td>${r.rpn>=100?"CRITIQUE":r.rpn>=50?"MAJEUR":"MINEUR"}</td>
+            <td>${r.action || "—"}</td>
+          </tr>`).join("")
+      : `<tr><td colspan="10" style="color:#9ca3af;font-style:italic">Aucune AMDEC saisie.</td></tr>`;
+    sections += `<h2>Tableau AMDEC (${APP.amdecRows.length} mode(s))</h2>
+    <table style="font-size:11px">
+      <thead><tr><th>Fonction</th><th>Mode</th><th>Effet</th><th>Cause</th><th>G</th><th>O</th><th>D</th><th>RPN</th><th>Criticité</th><th>Action</th></tr></thead>
+      <tbody>${rows}</tbody></table>`;
+  }
+
+  // ── Ishikawa ──
+  if (inc.ishi) {
+    const cats = ["methode","machine","matiere","main-oeuvre","milieu","mesure"];
+    const labels = { methode:"Méthode", machine:"Machine", matiere:"Matière", "main-oeuvre":"Main d'œuvre", milieu:"Milieu", mesure:"Mesure" };
+    let ishiRows = "";
+    cats.forEach(cat => {
+      const el = document.getElementById("causes-" + cat);
+      const causes = el ? Array.from(el.querySelectorAll(".ishi-cause-tag span")).map(s => s.textContent) : [];
+      if (causes.length) {
+        ishiRows += `<tr><td style="font-weight:600">${labels[cat]}</td><td>${causes.join(" · ")}</td></tr>`;
+      }
+    });
+    const effect = document.getElementById("ishi-effect")?.value || "—";
+    sections += `<h2>Diagramme d'Ishikawa — ${effect}</h2>
+    <table><thead><tr><th>Catégorie</th><th>Causes identifiées</th></tr></thead>
+    <tbody>${ishiRows || '<tr><td colspan="2" style="color:#9ca3af;font-style:italic">Aucune cause saisie.</td></tr>'}</tbody></table>`;
+  }
+
+  // ── Analyse IA ──
+  if (inc.ia) {
+    const iaContent = document.getElementById("ia-content")?.innerText?.trim();
+    sections += `<h2>Analyse IA — Gemini</h2>
+    <div class="ia-block">${iaContent
+      ? iaContent.replace(/
+/g, "<br>")
+      : "<em style='color:#9ca3af'>Aucune analyse IA effectuée — lancez l'analyse depuis l'onglet IA d'abord.</em>"
+    }</div>`;
+  }
+
+  const html = `<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8">
+<title>Rapport QHSE — ${info.entreprise}</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:32px;max-width:960px;margin:auto}
+  h1{font-size:22px;border-bottom:3px solid #39d0d8;padding-bottom:10px;margin-bottom:6px}
+  h2{font-size:14px;font-weight:700;margin:28px 0 10px;border-left:4px solid #39d0d8;padding-left:10px;color:#1c2b3a}
+  .meta{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;background:#f6f8fa;border-radius:8px;padding:16px;margin:16px 0}
+  .meta-item .lbl{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
+  .meta-item .val{font-weight:700;font-size:14px;margin-top:2px}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+  .kpi{background:#f6f8fa;border-radius:8px;padding:10px;text-align:center}
+  .kpi-label{font-size:10px;color:#6b7280;text-transform:uppercase}
+  .kpi-val{font-size:18px;font-weight:700;margin-top:3px}
+  .note{font-size:12px;color:#6b7280;margin-bottom:8px}
+  table{width:100%;border-collapse:collapse;margin:8px 0}
+  th{background:#1c2b3a;color:#e6edf3;font-size:11px;padding:7px 10px;text-align:left;white-space:nowrap}
+  td{padding:6px 10px;border-bottom:1px solid #e5e7eb}
+  tr:nth-child(even) td{background:#f9fafb}
+  .ia-block{background:#f6f8fa;border-radius:8px;padding:14px;font-size:12px;line-height:1.7;white-space:pre-wrap}
+  .footer{margin-top:48px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center}
+  @media print{body{padding:16px} h2{break-before:avoid}}
+</style></head><body>
+<h1>Rapport Qualité QHSE</h1>
+<div class="meta">
+  <div class="meta-item"><div class="lbl">Entreprise</div><div class="val">${info.entreprise}</div></div>
+  <div class="meta-item"><div class="lbl">Référence</div><div class="val">${info.ref}</div></div>
+  <div class="meta-item"><div class="lbl">Période</div><div class="val">${info.periode}</div></div>
+  <div class="meta-item"><div class="lbl">Analyste</div><div class="val">${info.analyste}</div></div>
+</div>
+${sections}
+<div class="footer">Généré par QHSE Analyzer Pro v2.0 &nbsp;·&nbsp; ${new Date().toLocaleDateString("fr-FR")}</div>
+</body></html>`;
 
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
   a.href     = url;
-  a.download = `Rapport_QHSE_${info.entreprise.replace(/\s/g,"_")}_${new Date().toISOString().slice(0,10)}.html`;
+  a.download = "Rapport_QHSE_" + info.entreprise.replace(/\s+/g, "_") + "_" + new Date().toISOString().slice(0,10) + ".html";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  toast("✅ Rapport HTML téléchargé", "success");
-  logRapport("Rapport HTML généré", "success");
+  toast("Rapport HTML téléchargé", "success");
+  logRapport("Rapport HTML généré (" + Object.values(inc).filter(Boolean).length + " sections)", "success");
 }
 
 function logRapport(msg, type) {
