@@ -2,7 +2,7 @@
  * taskpane.js — Orchestrateur principal QHSE Analyzer Pro
  * Coordonne : ExcelBridge, QualityStats, ControlCharts, GeminiAI
  */
-"use strict";
+import "./taskpane.css";
 
 // ─── État global ──────────────────────────────────────────────────────────────
 const APP = {
