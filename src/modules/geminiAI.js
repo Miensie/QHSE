@@ -5,8 +5,8 @@
 "use strict";
 
 const GEMINI_CONFIG = {
-  endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
-  model:    "gemini-1.5-flash",
+  endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent",
+  model:    "gemini-2.5-flash-lite",
   maxTokens: 2048,
   storageKey: "qhse_gemini_key",
 };

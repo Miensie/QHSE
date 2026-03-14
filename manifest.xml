@@ -70,7 +70,7 @@
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="CommandsGroup.Label" DefaultValue="QHSE Analyzer" />
-        <bt:String id="TaskpaneButton.Label" DefaultValue="Ouvrir QHSE Analyzer" />
+        <bt:String id="TaskpaneButton.Label" DefaultValue="QHSE Analyzer" />
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Analyse qualité intelligente : Pareto, SPC, AMDEC, IA." />
