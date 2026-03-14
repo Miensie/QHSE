@@ -791,6 +791,10 @@ function appendChatMsg(role, html) {
 
 // ─── RAPPORT ──────────────────────────────────────────────────────────────────
 function setupRapportHandlers() {
+  document.getElementById("btn-rapport-html").addEventListener("click", () => {
+    generateHTMLReport();
+  });
+
   document.getElementById("btn-rapport-excel").addEventListener("click", async () => {
     setBtnLoading("btn-rapport-excel", true, "Génération…");
     try {
@@ -814,20 +818,20 @@ async function generateExcelReport() {
   };
 
   const summaryData = [
-    ["Rapport QHSE — QHSE Analyzer Pro v2.0"],
-    [""],
+    ["Rapport QHSE — QHSE Analyzer Pro v2.0", ""],
+    ["", ""],
     ["Entreprise",  info.entreprise],
     ["Référence",   info.ref],
     ["Période",     info.periode],
     ["Analyste",    info.analyste],
     ["Date",        new Date().toLocaleDateString("fr-FR")],
-    [""],
-    ["=== KPIs QUALITÉ ==="],
+    ["", ""],
+    ["=== KPIs QUALITÉ ===", ""],
     ["Taux NC (%)",         APP.kpis.tauxNC?.toFixed(2)   ?? "—"],
-    ["Nb défauts",          APP.kpis.nbDefauts             ?? "—"],
+    ["Nb défauts",          String(APP.kpis.nbDefauts      ?? "—")],
     ["Cp",                  APP.kpis.cp?.toFixed(3)        ?? "—"],
     ["Cpk",                 APP.kpis.cpk?.toFixed(3)       ?? "—"],
-    ["Points hors contrôle",APP.kpis.pointsHC              ?? "—"],
+    ["Points hors contrôle",String(APP.kpis.pointsHC       ?? "—")],
   ];
   await ExcelBridge.writeTable("Rapport_QHSE", "A1", summaryData);
 
@@ -843,6 +847,84 @@ async function generateExcelReport() {
     await ExcelBridge.writeDashboard(APP.kpis);
     logRapport("Onglet Dashboard créé", "success");
   }
+}
+
+function generateHTMLReport() {
+  const info = {
+    entreprise: document.getElementById("rpt-entreprise").value || "—",
+    ref:        document.getElementById("rpt-ref").value        || "—",
+    periode:    document.getElementById("rpt-periode").value    || "—",
+    analyste:   document.getElementById("rpt-analyste").value   || "—",
+  };
+  const kpis = APP.kpis;
+  const pareto = APP.paretoResult;
+  const amdec  = APP.amdecRows;
+
+  const paretoRows = pareto ? pareto.rows.slice(0, 8).map(r =>
+    `<tr><td>${r.cause}</td><td>${r.freq}</td><td>${r.pct.toFixed(1)}%</td>
+     <td>${r.cumul.toFixed(1)}%</td>
+     <td style="color:${r.classe==="A"?"#dc2626":r.classe==="B"?"#d97706":"#6b7280"};font-weight:600">${r.classe}</td></tr>`
+  ).join("") : "<tr><td colspan='5'>Aucun Pareto calculé</td></tr>";
+
+  const amdecRows = amdec.length ? amdec.slice(0, 10).map(r =>
+    `<tr><td>${r.fonction}</td><td>${r.mode}</td><td>${r.cause}</td>
+     <td>${r.g}</td><td>${r.o}</td><td>${r.d}</td>
+     <td style="font-weight:700;color:${r.rpn>=100?"#dc2626":r.rpn>=50?"#d97706":"#16a34a"}">${r.rpn}</td></tr>`
+  ).join("") : "<tr><td colspan='7'>Aucune AMDEC saisie</td></tr>";
+
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+  <title>Rapport QHSE — ${info.entreprise}</title>
+  <style>
+    body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:32px;max-width:900px;margin:auto}
+    h1{color:#0d1117;font-size:22px;border-bottom:3px solid #39d0d8;padding-bottom:8px}
+    h2{color:#1c2b3a;font-size:15px;margin:28px 0 10px;border-left:4px solid #39d0d8;padding-left:10px}
+    .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:#f6f8fa;border-radius:8px;padding:16px;margin:16px 0}
+    .meta-item label{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
+    .meta-item span{display:block;font-weight:600;font-size:14px}
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
+    .kpi{background:#f6f8fa;border-radius:8px;padding:12px;text-align:center}
+    .kpi label{font-size:10px;color:#6b7280;text-transform:uppercase}
+    .kpi span{display:block;font-size:20px;font-weight:700;color:#0d1117;margin-top:4px}
+    table{width:100%;border-collapse:collapse;margin:10px 0}
+    th{background:#1c2b3a;color:#e6edf3;font-size:11px;padding:7px 10px;text-align:left}
+    td{padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px}
+    tr:hover td{background:#f9fafb}
+    .footer{margin-top:40px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center}
+  </style></head><body>
+  <h1>Rapport Qualité QHSE</h1>
+  <div class="meta">
+    <div class="meta-item"><label>Entreprise</label><span>${info.entreprise}</span></div>
+    <div class="meta-item"><label>Référence</label><span>${info.ref}</span></div>
+    <div class="meta-item"><label>Période</label><span>${info.periode}</span></div>
+    <div class="meta-item"><label>Analyste</label><span>${info.analyste}</span></div>
+  </div>
+  <h2>KPIs Qualité</h2>
+  <div class="kpi-grid">
+    <div class="kpi"><label>Taux NC</label><span>${kpis.tauxNC?.toFixed(2) ?? "—"}%</span></div>
+    <div class="kpi"><label>Nb défauts</label><span>${kpis.nbDefauts ?? "—"}</span></div>
+    <div class="kpi"><label>Cpk</label><span>${kpis.cpk?.toFixed(3) ?? "—"}</span></div>
+    <div class="kpi"><label>Points HC</label><span>${kpis.pointsHC ?? "—"}</span></div>
+  </div>
+  <h2>Analyse de Pareto</h2>
+  <table><thead><tr><th>Cause</th><th>Fréq.</th><th>%</th><th>Cumul</th><th>Classe</th></tr></thead>
+  <tbody>${paretoRows}</tbody></table>
+  <h2>Tableau AMDEC</h2>
+  <table><thead><tr><th>Fonction</th><th>Mode</th><th>Cause</th><th>G</th><th>O</th><th>D</th><th>RPN</th></tr></thead>
+  <tbody>${amdecRows}</tbody></table>
+  <div class="footer">Généré par QHSE Analyzer Pro v2.0 — ${new Date().toLocaleDateString("fr-FR")}</div>
+  </body></html>`;
+
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `Rapport_QHSE_${info.entreprise.replace(/\s/g,"_")}_${new Date().toISOString().slice(0,10)}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast("✅ Rapport HTML téléchargé", "success");
+  logRapport("Rapport HTML généré", "success");
 }
 
 function logRapport(msg, type) {

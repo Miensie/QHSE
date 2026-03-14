@@ -144,16 +144,19 @@ async function writeTable(sheetName, startCell, data, title = null) {
  */
 async function writeSPCResults(chartType, stats, points) {
   const sheetName = `SPC_${chartType}_${new Date().toISOString().slice(0,10)}`;
-  const headers   = ["N°", "Valeur", "Moyenne", "UCL", "LCL", "Statut"];
-  const data      = [headers, ...points.map((p, i) => [
+  // UCL/LCL ont des noms différents selon le type de carte
+  const ucl = stats.uclX ?? stats.uclI ?? stats.ucl ?? 0;
+  const lcl = stats.lclX ?? stats.lclI ?? stats.lcl ?? 0;
+  const headers = ["N°", "Valeur", "Moyenne", "UCL", "LCL", "Statut"];
+  const data    = [headers, ...points.map((p, i) => [
     i + 1,
-    p.value.toFixed(4),
-    stats.mean.toFixed(4),
-    stats.ucl.toFixed(4),
-    stats.lcl.toFixed(4),
-    p.outOfControl ? "HORS CONTRÔLE ⚠" : "OK",
+    parseFloat(p.value).toFixed(4),
+    parseFloat(stats.mean).toFixed(4),
+    parseFloat(ucl).toFixed(4),
+    parseFloat(lcl).toFixed(4),
+    p.outOfControl ? "HORS CONTRÔLE" : "OK",
   ])];
-  await writeTable(sheetName, "A1", data, `Carte ${chartType} — générée le ${new Date().toLocaleString("fr-FR")}`);
+  await writeTable(sheetName, "A1", data, `Carte ${chartType} — ${new Date().toLocaleString("fr-FR")}`);
 }
 
 /**
