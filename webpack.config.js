@@ -30,6 +30,8 @@ module.exports = {
       patterns: [
         { from: "src/assets", to: "assets" },
         { from: "manifest.xml", to: "manifest.xml" },
+        // FunctionFile référencé par le manifeste (sinon 404 sur GitHub Pages)
+        { from: "src/taskpane/commands.html", to: "commands.html" },
       ],
     }),
   ],

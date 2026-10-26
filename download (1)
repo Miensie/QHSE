@@ -1,0 +1,22 @@
+node_modules/
+dist/
+.cache/
+*.log
+.DS_Store
+Thumbs.db
+
+# Certificats dev locaux (générés par office-addin-dev-certs)
+*.pem
+*.crt
+*.key
+ca.crt
+
+# Variables d'environnement
+.env
+.env.local
+
+# IDE
+.vscode/settings.json
+.idea/
+*.suo
+*.user
