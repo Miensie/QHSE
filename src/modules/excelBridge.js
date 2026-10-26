@@ -83,6 +83,28 @@ function extractTextColumn(rows, colIndex) {
     .filter(v => v !== "");
 }
 
+/**
+ * Extrait des paires (catégorie, fréquence) LIGNE PAR LIGNE.
+ * Évite le désalignement qui survenait quand extractTextColumn et
+ * extractNumericColumn filtraient des lignes différentes.
+ * Lignes sans cause → ignorées ; fréquence non numérique → 0 (et comptée).
+ */
+function extractParetoPairs(rows, catIndex, freqIndex = null) {
+  const cats = [], freqs = [];
+  let skipped = 0;
+  rows.forEach(r => {
+    const c = String(r[catIndex] ?? "").trim();
+    if (!c) { skipped++; return; }
+    cats.push(c);
+    if (freqIndex !== null) {
+      const f = parseFloat(r[freqIndex]);
+      if (isNaN(f)) skipped++;
+      freqs.push(isNaN(f) ? 0 : f);
+    }
+  });
+  return { cats, freqs: freqIndex !== null ? freqs : null, skipped };
+}
+
 // ─── Écriture des résultats ────────────────────────────────────────────────────
 
 /**
@@ -167,12 +189,14 @@ async function writeSPCResults(chartType, stats, points) {
   const ucl = stats.uclX ?? stats.uclI ?? stats.ucl ?? 0;
   const lcl = stats.lclX ?? stats.lclI ?? stats.lcl ?? 0;
   const headers = ["N°", "Valeur", "Moyenne", "UCL", "LCL", "Statut"];
+  // Valeurs numériques (et non texte) ; limites par point pour la carte p
+  const r4 = v => (v === null || v === undefined || isNaN(v)) ? "" : +(+v).toFixed(4);
   const data    = [headers, ...points.map((p, i) => [
-    i + 1,
-    parseFloat(p.value).toFixed(4),
-    parseFloat(stats.mean).toFixed(4),
-    parseFloat(ucl).toFixed(4),
-    parseFloat(lcl).toFixed(4),
+    p.x ?? i + 1,
+    r4(p.value),
+    r4(stats.mean),
+    r4(p.ucl ?? ucl),
+    r4(p.lcl ?? lcl),
     p.outOfControl ? "HORS CONTRÔLE" : "OK",
   ])];
   await writeTable(sheetName, "A1", data, `Carte ${chartType} — ${new Date().toLocaleString("fr-FR")}`);
@@ -196,11 +220,20 @@ async function writeAMDEC(rows) {
  * Crée l'onglet Pareto dans Excel.
  */
 async function writePareto(rows) {
+  // Pourcentages écrits en NOMBRES (fraction) + format "0.0%" pour rester exploitables dans Excel
   const headers = ["Cause", "Fréquence", "% Fréquence", "% Cumulé", "Classe"];
   const data    = [headers, ...rows.map(r => [
-    r.cause, r.freq, r.pct.toFixed(1) + "%", r.cumul.toFixed(1) + "%", r.classe
+    r.cause, r.freq, +(r.pct / 100).toFixed(4), +(r.cumul / 100).toFixed(4), r.classe
   ])];
   await writeTable("Pareto", "A1", data, "Analyse de Pareto — QHSE Analyzer Pro");
+  if (rows.length) {
+    await Excel.run(async (ctx) => {
+      const sheet = ctx.workbook.worksheets.getItem("Pareto");
+      sheet.getRange(`C3:D${rows.length + 2}`).numberFormat =
+        Array.from({ length: rows.length }, () => ["0.0%", "0.0%"]);
+      await ctx.sync();
+    });
+  }
 }
 
 /**
@@ -209,7 +242,7 @@ async function writePareto(rows) {
 async function writeDashboard(kpis) {
   const data = [
     ["Indicateur", "Valeur", "Unité", "Statut"],
-    ["Taux de NC", kpis.tauxNC.toFixed(2), "%", kpis.tauxNC < 5 ? "✅ OK" : "⚠ Attention"],
+    ["Taux de NC", kpis.tauxNC?.toFixed(2) ?? "—", "%", kpis.tauxNC === undefined ? "—" : kpis.tauxNC < 5 ? "✅ OK" : "⚠ Attention"],
     ["Nb total défauts", kpis.nbDefauts, "—", "—"],
     ["Cp", kpis.cp?.toFixed(3) ?? "—", "—", kpis.cp >= 1.33 ? "✅ Capable" : "⚠ Non capable"],
     ["Cpk", kpis.cpk?.toFixed(3) ?? "—", "—", kpis.cpk >= 1.33 ? "✅ Capable" : "⚠ Non capable"],
@@ -225,6 +258,7 @@ window.ExcelBridge = {
   readRange,
   extractNumericColumn,
   extractTextColumn,
+  extractParetoPairs,
   writeTable,
   writeSPCResults,
   writeAMDEC,

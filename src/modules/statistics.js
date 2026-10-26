@@ -88,25 +88,36 @@ function summarize(data) {
  * @param {number}   usl   - upper spec limit
  * @returns {{ cp, cpk, ppm }}
  */
-function capability(data, lsl, usl) {
+function capability(data, lsl, usl, sigmaWithin = null) {
   const m  = mean(data);
-  const s  = stdDev(data);
+  const sOverall = stdDev(data);                 // σ global → Pp / Ppk (performance)
+  // σ intra (court terme) → Cp / Cpk. Par défaut : MR̄/d2 (d2 = 1.128, n = 2),
+  // en supposant les données dans l'ordre chronologique.
+  let sW = sigmaWithin;
+  if (!(sW > 0) && data.length >= 2) {
+    const mr = data.slice(1).map((v, i) => Math.abs(v - data[i]));
+    sW = mean(mr) / 1.128;
+  }
+  if (!(sW > 0)) sW = sOverall;
 
-  if (s === 0) return { cp: Infinity, cpk: Infinity, ppm: 0 };
+  if (sOverall === 0 || !(sW > 0)) return { cp: Infinity, cpk: Infinity, pp: Infinity, ppk: Infinity, ppm: 0 };
 
-  const cp  = (usl - lsl) / (6 * s);
-  const cpu = (usl - m) / (3 * s);
-  const cpl = (m - lsl) / (3 * s);
+  const cp  = (usl - lsl) / (6 * sW);
+  const cpu = (usl - m) / (3 * sW);
+  const cpl = (m - lsl) / (3 * sW);
   const cpk = Math.min(cpu, cpl);
 
-  // Estimation PPM hors spécifications (approximation normale)
-  const zUpper = (usl - m) / s;
-  const zLower = (m - lsl) / s;
-  const ppmUpper = 1_000_000 * normCDF(-zUpper);
-  const ppmLower = 1_000_000 * normCDF(-zLower);
+  const pp  = (usl - lsl) / (6 * sOverall);
+  const ppk = Math.min((usl - m) / (3 * sOverall), (m - lsl) / (3 * sOverall));
+
+  // Estimation PPM hors spécifications (approximation normale, σ global)
+  const ppmUpper = 1_000_000 * normCDF(-(usl - m) / sOverall);
+  const ppmLower = 1_000_000 * normCDF(-(m - lsl) / sOverall);
   const ppm      = ppmUpper + ppmLower;
 
-  return { cp, cpk, cpu, cpl, ppm: Math.round(ppm), sigma: m / s };
+  // NB : ne PAS renvoyer de clé "sigma" (elle écrasait l'écart-type dans APP.kpis)
+  return { cp, cpk, cpu, cpl, pp, ppk, ppm: Math.round(ppm),
+           sigmaWithin: sW, sigmaLevel: 3 * cpk };
 }
 
 // Distribution normale standard CDF (approximation Abramowitz & Stegun)
@@ -165,21 +176,25 @@ function paretoAnalysis(categories, counts = null) {
   }
 
   const total = Object.values(freq).reduce((a, b) => a + b, 0);
+  if (!(total > 0)) return { rows: [], total: 0, vitalFew: [] };
 
   // Trier par fréquence décroissante
   const sorted = Object.entries(freq)
     .sort((a, b) => b[1] - a[1])
     .map(([cause, f]) => ({ cause, freq: f, pct: (f / total) * 100 }));
 
-  // Calcul du cumulé
+  // Calcul du cumulé — classement ABC sur le cumul AVANT la cause :
+  // la cause qui fait franchir 80 % reste en classe A (sinon une cause unique
+  // représentant 85 % des défauts serait classée B).
   let cumul = 0;
   sorted.forEach(item => {
+    const before = cumul;
     cumul += item.pct;
-    item.cumul = cumul;
-    item.classe = item.cumul <= 80 ? "A" : item.cumul <= 95 ? "B" : "C";
+    item.cumul = Math.min(cumul, 100);
+    item.classe = before < 80 ? "A" : before < 95 ? "B" : "C";
   });
 
-  return { rows: sorted, total };
+  return { rows: sorted, total, vitalFew: sorted.filter(r => r.classe === "A").map(r => r.cause) };
 }
 
 window.QualityStats = {

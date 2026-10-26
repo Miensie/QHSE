@@ -62,8 +62,8 @@ function xbarRChart(data, n = 5) {
     points:  subgroups.map(s => ({ x: s.i, value: s.mean, outOfControl: false })),
     mean:    Xdbar,
     ucl:     Xdbar + A2 * Rbar,
-    lcl:     Math.max(0, Xdbar - A2 * Rbar),
-    sigma,
+    lcl:     Xdbar - A2 * Rbar,   // pas de troncature à 0 : une moyenne peut être négative
+    sigma:   sigma / Math.sqrt(n), // σ de la moyenne (zones A/B/C de la carte X̄)
     title:   "Carte X̄",
     ylabel:  "Moyenne",
   };
@@ -89,6 +89,7 @@ function xbarRChart(data, n = 5) {
       mean: Xdbar, rbar: Rbar, sigma,
       uclX: xbarChart.ucl, lclX: xbarChart.lcl,
       uclR: rChart.ucl,    lclR: rChart.lcl,
+      ucl: xbarChart.ucl,  lcl: xbarChart.lcl,
     },
   };
 }
@@ -137,6 +138,7 @@ function iMRChart(data) {
       sigma: mrbar / d2,
       uclI: iChart.ucl, lclI: iChart.lcl,
       uclMR: mrChart.ucl,
+      ucl: iChart.ucl,  lcl: iChart.lcl,
     },
   };
 }
@@ -158,16 +160,21 @@ function pChart(defectives, lotSizes) {
     return { x: i + 1, value: p, ucl, lcl, outOfControl: p > ucl || p < lcl };
   });
 
+  const chart = {
+    points,
+    mean:  pbar,
+    ucl:   null, // variable (dépend de la taille de lot)
+    lcl:   null,
+    title: "Carte p",
+    ylabel:"Proportion NC",
+  };
+  applyNelsonRules(chart); // R1 uniquement (σ variable par point)
+
+  const uclMean = points.reduce((a, b) => a + b.ucl, 0) / k;
+  const lclMean = points.reduce((a, b) => a + b.lcl, 0) / k;
   return {
-    chart: {
-      points,
-      mean:  pbar,
-      ucl:   null, // variable
-      lcl:   null,
-      title: "Carte p",
-      ylabel:"Proportion NC",
-    },
-    stats: { k, pbar, uclMean: points.reduce((a, b) => a + b.ucl, 0) / k },
+    chart,
+    stats: { n: k, k, pbar, mean: pbar, uclMean, ucl: uclMean, lcl: lclMean },
   };
 }
 
@@ -193,7 +200,7 @@ function cChart(defectCounts) {
   };
 
   applyNelsonRules(chart);
-  return { chart, stats: { n: defectCounts.length, cbar, ucl: chart.ucl, lcl: chart.lcl } };
+  return { chart, stats: { n: defectCounts.length, cbar, mean: cbar, sigma: Math.sqrt(cbar), ucl: chart.ucl, lcl: chart.lcl } };
 }
 
 // ─── Règles de Nelson (détection de causes spéciales) ─────────────────────────
@@ -205,7 +212,7 @@ function cChart(defectCounts) {
 function applyNelsonRules(chart) {
   const pts    = chart.points;
   const mu     = chart.mean;
-  const sigma  = chart.sigma || ((chart.ucl - mu) / 3);
+  const sigma  = chart.sigma || (chart.ucl != null ? (chart.ucl - mu) / 3 : 0);
   const violations = [];
 
   pts.forEach((p, i) => {
@@ -217,7 +224,7 @@ function applyNelsonRules(chart) {
   pts.forEach((p, i) => {
     const ucl = chart.ucl ?? p.ucl;
     const lcl = chart.lcl ?? p.lcl;
-    if (ucl !== null && (p.value > ucl || p.value < lcl)) {
+    if (ucl != null && (p.value > ucl || (lcl != null && p.value < lcl))) {
       p.outOfControl = true;
       p.violationRules.push(1);
       violations.push({ rule: 1, point: i + 1, label: `Point ${i + 1} hors limites (±3σ)` });
@@ -251,10 +258,10 @@ function applyNelsonRules(chart) {
     // R4 : 14 points alternant (oscillation)
     for (let i = 13; i < pts.length; i++) {
       const slice = pts.slice(i - 13, i + 1).map(p => p.value);
-      const alt = slice.every((v, j) => {
-        if (j === 0) return true;
-        return j % 2 === 1 ? v > slice[j - 1] : v < slice[j - 1];
-      });
+      // Alternance haut/bas dans les deux phases (début montant OU descendant)
+      const diffs = slice.slice(1).map((v, j) => v - slice[j]);
+      const alt = diffs.every(d => d !== 0) &&
+                  diffs.every((d, j) => j === 0 || Math.sign(d) !== Math.sign(diffs[j - 1]));
       if (alt) {
         pts[i].violationRules.push(4);
         violations.push({ rule: 4, point: i + 1, label: `Point ${i + 1} : oscillation de 14 points (R4)` });
@@ -276,6 +283,23 @@ function applyNelsonRules(chart) {
       if (slice.filter(v => v > 1).length >= 4 || slice.filter(v => v < -1).length >= 4) {
         pts[i].violationRules.push(6);
         violations.push({ rule: 6, point: i + 1, label: `Point ${i + 1} : 4/5 points > ±1σ (R6)` });
+      }
+    }
+
+    // R7 : 15 points consécutifs dans ±1σ (stratification)
+    for (let i = 14; i < pts.length; i++) {
+      if (z.slice(i - 14, i + 1).every(v => Math.abs(v) < 1)) {
+        pts[i].violationRules.push(7);
+        violations.push({ rule: 7, point: i + 1, label: `Point ${i + 1} : 15 points consécutifs dans ±1σ (R7)` });
+      }
+    }
+
+    // R8 : 8 points consécutifs hors ±1σ, des deux côtés (mélange)
+    for (let i = 7; i < pts.length; i++) {
+      const slice = z.slice(i - 7, i + 1);
+      if (slice.every(v => Math.abs(v) > 1) && slice.some(v => v > 0) && slice.some(v => v < 0)) {
+        pts[i].violationRules.push(8);
+        violations.push({ rule: 8, point: i + 1, label: `Point ${i + 1} : 8 points hors ±1σ des deux côtés (R8)` });
       }
     }
   }

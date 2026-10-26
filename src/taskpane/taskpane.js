@@ -39,7 +39,9 @@ function initApp() {
   setupDashboardHandlers();
   setupIAHandlers();
   setupRapportHandlers();
-  GeminiAI.loadApiKey();
+  if (GeminiAI.loadApiKey()) document.getElementById("gemini-key").value = GeminiAI.loadApiKey();
+  const modelEl = document.getElementById("gemini-model");
+  if (modelEl) modelEl.value = GeminiAI.loadModel();
   setStatus("QHSE Analyzer Pro v2.0 ✓");
   log("Prêt — chargez vos données dans l'onglet Données.", "info");
 }
@@ -105,9 +107,9 @@ function renderColumnsUI() {
 function renderPreview() {
   const thead = document.getElementById("preview-thead");
   const tbody = document.getElementById("preview-tbody");
-  thead.innerHTML = `<tr>${APP.data.headers.map(h => `<th>${h}</th>`).join("")}</tr>`;
+  thead.innerHTML = `<tr>${APP.data.headers.map(h => `<th>${escapeHtml(h)}</th>`).join("")}</tr>`;
   tbody.innerHTML = APP.data.rows.slice(0, 8).map(row =>
-    `<tr>${row.map(v => `<td>${v ?? ""}</td>`).join("")}</tr>`
+    `<tr>${row.map(v => `<td>${escapeHtml(v)}</td>`).join("")}</tr>`
   ).join("");
   document.getElementById("preview-count").textContent = APP.data.totalRows;
   document.getElementById("preview-card").style.display = "block";
@@ -122,7 +124,9 @@ function populateColumnSelects() {
     const el = document.getElementById(id);
     if (!el) return;
     const currentVal = el.value;
-    el.innerHTML = `<option value="">— Sélectionner —</option>`;
+    el.innerHTML = id === "pareto-freq-col"
+      ? `<option value="">— Compter les occurrences —</option>`
+      : `<option value="">— Sélectionner —</option>`;
     APP.data.headers.forEach((h, i) => {
       const opt = document.createElement("option");
       opt.value = i;
@@ -158,20 +162,26 @@ function setupParetoHandlers() {
     const freqIdx = document.getElementById("pareto-freq-col").value;
     if (isNaN(catIdx)) { toast("Sélectionnez la colonne des causes", "error"); return; }
 
-    const cats   = ExcelBridge.extractTextColumn(APP.data.rows, catIdx);
-    const freqs  = freqIdx !== "" ? ExcelBridge.extractNumericColumn(APP.data.rows, parseInt(freqIdx)) : null;
+    // Extraction ligne par ligne (cause, fréquence) → pas de désalignement
+    const { cats, freqs, skipped } = ExcelBridge.extractParetoPairs(
+      APP.data.rows, catIdx, freqIdx !== "" ? parseInt(freqIdx) : null);
 
-    APP.paretoResult = QualityStats.paretoAnalysis(cats, freqs);
+    const result = QualityStats.paretoAnalysis(cats, freqs);
+    if (!result.rows.length) { toast("Aucune donnée exploitable pour le Pareto (total = 0)", "error"); return; }
+    APP.paretoResult = result;
     renderParetoChart(APP.paretoResult);
     renderParetoTable(APP.paretoResult);
     document.getElementById("pareto-result").style.display = "block";
     toast(`✅ Pareto calculé — ${APP.paretoResult.rows.length} causes`, "success");
+    if (skipped) toast(`${skipped} ligne(s) incomplète(s) ignorée(s) ou fréquence non numérique → 0`, "warn");
   });
 
   document.getElementById("btn-pareto-excel").addEventListener("click", async () => {
     if (!APP.paretoResult) return;
-    await ExcelBridge.writePareto(APP.paretoResult.rows);
-    toast("✅ Pareto écrit dans l'onglet 'Pareto'", "success");
+    try {
+      await ExcelBridge.writePareto(APP.paretoResult.rows);
+      toast("✅ Pareto écrit dans l'onglet 'Pareto'", "success");
+    } catch (e) { toast("Erreur écriture Excel : " + e.message, "error"); }
   });
 }
 
@@ -208,6 +218,18 @@ function renderParetoChart(result) {
           fill: false,
           yAxisID: "yRight",
         },
+        {
+          // Seuil 80 % tracé comme dataset (le plugin chartjs-plugin-annotation n'est pas chargé)
+          type: "line",
+          label: "Seuil 80 %",
+          data: labels.map(() => 80),
+          borderColor: "#f85149",
+          borderDash: [4, 4],
+          borderWidth: 1,
+          pointRadius: 0,
+          fill: false,
+          yAxisID: "yRight",
+        },
       ],
     },
     options: {
@@ -215,16 +237,6 @@ function renderParetoChart(result) {
       maintainAspectRatio: false,
       plugins: {
         legend: { labels: { color: "#8b949e", font: { size: 10 }, boxWidth: 12 } },
-        annotation: {
-          annotations: [{
-            type: "line",
-            yMin: 80, yMax: 80,
-            yScaleID: "yRight",
-            borderColor: "#f85149",
-            borderDash: [4, 4],
-            borderWidth: 1,
-          }],
-        },
       },
       scales: {
         x: { ticks: { color: "#8b949e", font: { size: 9 }, maxRotation: 45 }, grid: { color: "rgba(255,255,255,0.04)" } },
@@ -238,7 +250,7 @@ function renderParetoChart(result) {
 function renderParetoTable(result) {
   document.getElementById("pareto-tbody").innerHTML = result.rows.map(r => `
     <tr>
-      <td>${r.cause}</td>
+      <td>${escapeHtml(r.cause)}</td>
       <td style="font-family:var(--font-data)">${r.freq}</td>
       <td style="font-family:var(--font-data)">${r.pct.toFixed(1)}%</td>
       <td style="font-family:var(--font-data)">${r.cumul.toFixed(1)}%</td>
@@ -270,10 +282,14 @@ function setupIshikawaHandlers() {
     try {
       const existing = getIshikawaCauses();
       const suggestions = await GeminiAI.suggestIshikawaCauses(effect, existing);
+      let added = 0;
       Object.entries(suggestions).forEach(([cat, causes]) => {
-        if (Array.isArray(causes)) causes.forEach(c => addIshikawaCause(cat, c));
+        causes.forEach(c => {
+          if ((existing[cat] || []).includes(c)) return;   // pas de doublon
+          if (document.getElementById(`causes-${cat}`)) { addIshikawaCause(cat, c); added++; }
+        });
       });
-      toast("✅ Causes IA ajoutées", "success");
+      toast(added ? `✅ ${added} cause(s) IA ajoutée(s)` : "L'IA n'a proposé aucune nouvelle cause", added ? "success" : "warn");
     } catch (e) { toast("Erreur IA : " + e.message, "error"); }
     setBtnLoading("btn-ishi-ai", false, "✦ Suggestions IA");
   });
@@ -292,7 +308,7 @@ function addIshikawaCause(cat, text) {
   if (!container) return;
   const tag = document.createElement("div");
   tag.className = "ishi-cause-tag";
-  tag.innerHTML = `<span>${text}</span><button title="Supprimer">×</button>`;
+  tag.innerHTML = `<span>${escapeHtml(text)}</span><button title="Supprimer">×</button>`;
   tag.querySelector("button").addEventListener("click", () => tag.remove());
   container.appendChild(tag);
 }
@@ -440,12 +456,12 @@ function renderAMDECTable() {
   document.getElementById("amdec-tbody").innerHTML = APP.amdecRows.map((r, i) => {
     const cls = r.rpn >= 100 ? "critical" : r.rpn >= 50 ? "major" : "minor";
     return `<tr>
-      <td>${r.fonction}</td><td>${r.mode}</td><td>${r.effet}</td><td>${r.cause}</td>
+      <td>${escapeHtml(r.fonction)}</td><td>${escapeHtml(r.mode)}</td><td>${escapeHtml(r.effet)}</td><td>${escapeHtml(r.cause)}</td>
       <td style="text-align:center">${r.g}</td>
       <td style="text-align:center">${r.o}</td>
       <td style="text-align:center">${r.d}</td>
       <td><span class="rpn-badge ${cls}" style="font-size:11px">${r.rpn}</span></td>
-      <td style="font-size:10px">${r.action}</td>
+      <td style="font-size:10px">${escapeHtml(r.action)}</td>
       <td><button onclick="removeAMDECRow(${i})" style="background:none;border:none;color:var(--accent-red);cursor:pointer;font-size:11px">✕</button></td>
     </tr>`;
   }).join("");
@@ -519,7 +535,23 @@ function computeSPC(type, data) {
   let result;
   const subSize = parseInt(document.getElementById("spc-subgroup").value) || 5;
 
-  if (type === "xbar-r") {
+  if (type === "p") {
+    // Carte p : colonne = nb de non-conformes, colonne n = taille de lot (lecture ligne par ligne)
+    const colIdx = parseInt(document.getElementById("spc-col").value);
+    const nIdx   = parseInt(document.getElementById("spc-n-col").value);
+    if (isNaN(nIdx)) { toast("Sélectionnez la colonne taille de lot (n)", "error"); return; }
+    const def = [], lots = [];
+    APP.data.rows.forEach(row => {
+      const d = parseFloat(row[colIdx]), n = parseFloat(row[nIdx]);
+      if (!isNaN(d) && n > 0 && d >= 0 && d <= n) { def.push(d); lots.push(n); }
+    });
+    if (def.length < 10) { toast("Carte p : minimum 10 lots valides (0 ≤ NC ≤ n)", "error"); return; }
+    const r = ControlCharts.pChart(def, lots);
+    APP.spcResult = { type, stats: r.stats, chart1: r.chart, chart2: null };
+    renderSPCResults(r.stats, r.chart, null, r.stats);
+  } else if (type === "xbar-r") {
+    if (subSize < 2 || subSize > 25) { toast("Taille de sous-groupe entre 2 et 25", "error"); return; }
+    if (Math.floor(data.length / subSize) < 5) { toast("Trop peu de sous-groupes (minimum 5)", "error"); return; }
     const r = ControlCharts.xbarRChart(data, subSize);
     APP.spcResult = { type, stats: r.stats, chart1: r.xbarChart, chart2: r.rChart };
     renderSPCResults(r.stats, r.xbarChart, r.rChart, r.stats);
@@ -594,17 +626,20 @@ function setupDashboardHandlers() {
     const usl = parseFloat(document.getElementById("dash-usl").value);
 
     // Calcul KPIs
-    const stats = QualityStats.summarize(data);
-    const nc    = !isNaN(lsl) && !isNaN(usl)
-      ? data.filter(v => v < lsl || v > usl).length : 0;
+    const stats    = QualityStats.summarize(data);
+    const hasSpecs = !isNaN(lsl) && !isNaN(usl);
+    if (hasSpecs && usl <= lsl) { toast("USL doit être supérieure à LSL", "error"); return; }
+    const nc = hasSpecs ? data.filter(v => v < lsl || v > usl).length : undefined;
 
+    // Repartir des KPIs SPC seulement (évite de garder un Cp/Cpk d'un calcul précédent)
+    const { pointsHC } = APP.kpis;
     APP.kpis = {
-      ...APP.kpis,
-      tauxNC:   (nc / data.length) * 100,
+      pointsHC,
+      tauxNC:    hasSpecs ? (nc / data.length) * 100 : undefined, // sans spécifications : "—"
       nbDefauts: nc,
-      mean:     stats.mean,
-      sigma:    stats.std,
-      ...(!isNaN(lsl) && !isNaN(usl) ? QualityStats.capability(data, lsl, usl) : {}),
+      mean:      stats.mean,
+      ...(hasSpecs ? QualityStats.capability(data, lsl, usl) : {}),
+      sigma:     stats.std,  // placé APRÈS le spread pour ne jamais être écrasé
     };
 
     updateDashboardKPIs();
@@ -678,11 +713,16 @@ function renderEvolution(data) {
 
 // ─── IA ───────────────────────────────────────────────────────────────────────
 function setupIAHandlers() {
-  document.getElementById("btn-save-key").addEventListener("click", () => {
+  document.getElementById("btn-save-key").addEventListener("click", async () => {
     const key = document.getElementById("gemini-key").value.trim();
     if (!key) { toast("Saisissez votre clé API", "error"); return; }
     GeminiAI.setApiKey(key);
-    toast("✅ Clé API sauvegardée", "success");
+    GeminiAI.setModel(document.getElementById("gemini-model")?.value);
+    toast("Clé enregistrée — test de connexion…", "info");
+    try {
+      await GeminiAI.testConnection();
+      toast(`✅ Connexion OK (${GeminiAI.getModel()})`, "success");
+    } catch (e) { toast("Clé enregistrée mais test échoué : " + e.message, "error", 7000); }
   });
 
   document.getElementById("btn-ia-spc").addEventListener("click", async () => {
@@ -742,7 +782,11 @@ async function runIAAnalysis(type) {
     } else if (type === "amdec") {
       result = await GeminiAI.analyzeAMDEC(APP.amdecRows);
     } else {
-      result = await GeminiAI.globalDiagnosis(APP.kpis, APP.spcResult?.stats, APP.paretoResult?.rows);
+      const spcStats = APP.spcResult ? {
+        ...APP.spcResult.stats,
+        nbViolations: (APP.spcResult.chart1?.violations?.length || 0) + (APP.spcResult.chart2?.violations?.length || 0),
+      } : null;
+      result = await GeminiAI.globalDiagnosis(APP.kpis, spcStats, APP.paretoResult?.rows);
     }
     content.innerHTML = GeminiAI.formatResponseHTML(result);
     toast("✅ Analyse IA terminée", "success");
@@ -838,10 +882,10 @@ async function generateExcelReport() {
 
 function generateHTMLReport() {
   const info = {
-    entreprise: document.getElementById("rpt-entreprise").value || "—",
-    ref:        document.getElementById("rpt-ref").value        || "—",
-    periode:    document.getElementById("rpt-periode").value    || "—",
-    analyste:   document.getElementById("rpt-analyste").value   || "—",
+    entreprise: escapeHtml(document.getElementById("rpt-entreprise").value || "—"),
+    ref:        escapeHtml(document.getElementById("rpt-ref").value        || "—"),
+    periode:    escapeHtml(document.getElementById("rpt-periode").value    || "—"),
+    analyste:   escapeHtml(document.getElementById("rpt-analyste").value   || "—"),
   };
 
   // Lire les cases à cocher
@@ -868,6 +912,8 @@ function generateHTMLReport() {
       <div class="kpi"><div class="kpi-label">Points HC</div><div class="kpi-val">${kpis.pointsHC ?? "—"}</div></div>
       <div class="kpi"><div class="kpi-label">Moyenne</div><div class="kpi-val">${kpis.mean?.toFixed(4) ?? "—"}</div></div>
       <div class="kpi"><div class="kpi-label">Sigma</div><div class="kpi-val">${kpis.sigma?.toFixed(4) ?? "—"}</div></div>
+      <div class="kpi"><div class="kpi-label">Pp</div><div class="kpi-val">${kpis.pp?.toFixed(3) ?? "—"}</div></div>
+      <div class="kpi"><div class="kpi-label">Ppk</div><div class="kpi-val">${kpis.ppk?.toFixed(3) ?? "—"}</div></div>
       <div class="kpi"><div class="kpi-label">PPM estimés</div><div class="kpi-val">${kpis.ppm?.toLocaleString("fr-FR") ?? "—"}</div></div>
     </div>`;
   }
@@ -878,7 +924,7 @@ function generateHTMLReport() {
     const rows = pareto
       ? pareto.rows.map(r =>
           `<tr>
-            <td>${r.cause}</td>
+            <td>${escapeHtml(r.cause)}</td>
             <td style="text-align:right">${r.freq}</td>
             <td style="text-align:right">${r.pct.toFixed(1)}%</td>
             <td style="text-align:right;font-weight:600">${r.cumul.toFixed(1)}%</td>
@@ -916,16 +962,16 @@ function generateHTMLReport() {
     const rows = APP.amdecRows.length
       ? APP.amdecRows.map(r =>
           `<tr>
-            <td>${r.fonction || "—"}</td>
-            <td>${r.mode || "—"}</td>
-            <td>${r.effet || "—"}</td>
-            <td>${r.cause || "—"}</td>
+            <td>${escapeHtml(r.fonction || "—")}</td>
+            <td>${escapeHtml(r.mode || "—")}</td>
+            <td>${escapeHtml(r.effet || "—")}</td>
+            <td>${escapeHtml(r.cause || "—")}</td>
             <td style="text-align:center">${r.g}</td>
             <td style="text-align:center">${r.o}</td>
             <td style="text-align:center">${r.d}</td>
             <td style="text-align:center;font-weight:700;color:${r.rpn>=100?"#dc2626":r.rpn>=50?"#d97706":"#16a34a"}">${r.rpn}</td>
             <td>${r.rpn>=100?"CRITIQUE":r.rpn>=50?"MAJEUR":"MINEUR"}</td>
-            <td>${r.action || "—"}</td>
+            <td>${escapeHtml(r.action || "—")}</td>
           </tr>`).join("")
       : `<tr><td colspan="10" style="color:#9ca3af;font-style:italic">Aucune AMDEC saisie.</td></tr>`;
     sections += `<h2>Tableau AMDEC (${APP.amdecRows.length} mode(s))</h2>
@@ -943,11 +989,11 @@ function generateHTMLReport() {
       const el = document.getElementById("causes-" + cat);
       const causes = el ? Array.from(el.querySelectorAll(".ishi-cause-tag span")).map(s => s.textContent) : [];
       if (causes.length) {
-        ishiRows += `<tr><td style="font-weight:600">${labels[cat]}</td><td>${causes.join(" · ")}</td></tr>`;
+        ishiRows += `<tr><td style="font-weight:600">${labels[cat]}</td><td>${causes.map(escapeHtml).join(" · ")}</td></tr>`;
       }
     });
     const effect = document.getElementById("ishi-effect")?.value || "—";
-    sections += `<h2>Diagramme d'Ishikawa — ${effect}</h2>
+    sections += `<h2>Diagramme d'Ishikawa — ${escapeHtml(effect)}</h2>
     <table><thead><tr><th>Catégorie</th><th>Causes identifiées</th></tr></thead>
     <tbody>${ishiRows || '<tr><td colspan="2" style="color:#9ca3af;font-style:italic">Aucune cause saisie.</td></tr>'}</tbody></table>`;
   }
@@ -957,7 +1003,7 @@ function generateHTMLReport() {
     const iaContent = document.getElementById("ia-content")?.innerText?.trim();
     sections += `<h2>Analyse IA — Gemini</h2>
     <div class="ia-block">${iaContent
-      ? iaContent.replace(/\n/g, "<br>")
+      ? escapeHtml(iaContent).replace(/\n/g, "<br>")
       : "<em style='color:#9ca3af'>Aucune analyse IA effectuée — lancez l'analyse depuis l'onglet IA d'abord.</em>"
     }</div>`;
   }
@@ -1000,7 +1046,7 @@ ${sections}
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
   a.href     = url;
-  a.download = "Rapport_QHSE_" + info.entreprise.replace(/\s+/g, "_") + "_" + new Date().toISOString().slice(0,10) + ".html";
+  a.download = "Rapport_QHSE_" + (document.getElementById("rpt-entreprise").value || "QHSE").replace(/[^\w\-]+/g, "_") + "_" + new Date().toISOString().slice(0,10) + ".html";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1020,6 +1066,11 @@ function logRapport(msg, type) {
 }
 
 // ─── Utilitaires ──────────────────────────────────────────────────────────────
+function escapeHtml(v) {
+  return String(v ?? "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 function destroyChart(id) {
   if (APP.charts[id]) { APP.charts[id].destroy(); delete APP.charts[id]; }
 }
